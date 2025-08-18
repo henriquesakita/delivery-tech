@@ -11,7 +11,7 @@
  <groupId>com.deliverytech</groupId>
  <artifactId>delivery-api</artifactId>
  <version>0.0.1-SNAPSHOT</version>
- <name>delivery-api</name>
+ <name>delivery_api</name>
  <description>Demo project for Spring Boot</description>
  <url/>
  <licenses>
