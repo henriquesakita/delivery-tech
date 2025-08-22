@@ -1,282 +1,153 @@
 package com.deliverytech.delivery_api.service.impl;
 
-import com.deliverytech.delivery_api.dto.request.ProdutoRequest;
 import com.deliverytech.delivery_api.model.Produto;
-import com.deliverytech.delivery_api.model.Restaurante;
-import com.deliverytech.delivery_api.repository.ProdutoRepository;
 import com.deliverytech.delivery_api.service.ProdutoService;
-import com.deliverytech.delivery_api.service.RestauranteService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
-@Slf4j
+/**
+ * Implementação didática de ProdutoService.
+ * Ajuste os nomes de repositórios e propriedades conforme seu projeto.
+ */
 @Service
-@Transactional
-@RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ProdutoServiceImpl implements ProdutoService {
 
     private final ProdutoRepository produtoRepository;
-    private final RestauranteService restauranteService;
+    private final RestauranteRepository restauranteRepository;
 
-    /**
-     * Cadastra um novo produto
-     */
-    @Override
-    public Produto cadastrar(ProdutoRequest produtoRequest) {
-        log.info("Iniciando cadastro de produto: {}", produtoRequest.getNome());
-        
-        // Buscar o restaurante pelo ID
-        Restaurante restaurante = restauranteService.buscarPorId(produtoRequest.getRestauranteId())
-            .orElseThrow(() -> new IllegalArgumentException("Restaurante não encontrado: " + produtoRequest.getRestauranteId()));
-
-        // Converter ProdutoRequest para Produto
-        Produto produto = new Produto();
-        produto.setNome(produtoRequest.getNome());
-        produto.setDescricao(produtoRequest.getDescricao());
-        produto.setPreco(produtoRequest.getPreco());
-        produto.setCategoria(produtoRequest.getCategoria());
-        produto.setImagemUrl(produtoRequest.getImagemUrl());
-        produto.setDisponivel(produtoRequest.getDisponivel() != null ? produtoRequest.getDisponivel() : true);
-        produto.setRestaurante(restaurante);
-        
-        // Validações de negócio
-        validarDadosProduto(produto);
-        
-        Produto produtoSalvo = produtoRepository.save(produto);
-        log.info("Produto cadastrado com sucesso - ID: {}", produtoSalvo.getId());
-        
-        return produtoSalvo;
+    public ProdutoServiceImpl(ProdutoRepository produtoRepository,
+                              RestauranteRepository restauranteRepository) {
+        this.produtoRepository = produtoRepository;
+        this.restauranteRepository = restauranteRepository;
     }
 
-    /**
-     * Busca produto por ID
-     */
+    // === OPERAÇÕES BÁSICAS ===
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
+    public Produto cadastrar(Produto produto) {
+        validarPreco(produto.getPreco());
+
+        if (produto.getRestaurante() == null || produto.getRestaurante().getId() == null) {
+            throw new IllegalArgumentException("Produto deve pertencer a um restaurante válido.");
+        }
+
+        // Garante que o restaurante existe
+        var restauranteId = produto.getRestaurante().getId();
+        restauranteRepository.findById(restauranteId)
+                .orElseThrow(() -> new NoSuchElementException("Restaurante não encontrado: " + restauranteId));
+
+        // Disponível por padrão (ajuste conforme regra)
+        if (produto.getDisponivel() == null) {
+            produto.setDisponivel(true);
+        }
+
+        return produtoRepository.save(produto);
+    }
+
+    @Override
     public Optional<Produto> buscarPorId(Long id) {
-        log.info("Buscando produto por ID: {}", id);
         return produtoRepository.findById(id);
     }
 
-    /**
-     * Lista produtos por restaurante
-     */
     @Override
-    @Transactional(readOnly = true)
-    public List<Produto> listarPorRestaurante(Long restauranteId) {
-        log.info("Listando produtos do restaurante ID: {}", restauranteId);
-        // Verificar se restaurante existe
-        if (!restauranteService.buscarPorId(restauranteId).isPresent()) {
-            throw new IllegalArgumentException("Restaurante não encontrado: " + restauranteId);
+    public List<Produto> listarTodos() {
+        return produtoRepository.findAll();
+    }
+
+    @Override
+    @Transactional
+    public Produto atualizar(Long id, Produto produtoAtualizado) {
+        var existente = produtoRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Produto não encontrado: " + id));
+
+        if (produtoAtualizado.getNome() != null) existente.setNome(produtoAtualizado.getNome());
+        if (produtoAtualizado.getDescricao() != null) existente.setDescricao(produtoAtualizado.getDescricao());
+        if (produtoAtualizado.getCategoria() != null) existente.setCategoria(produtoAtualizado.getCategoria());
+        if (produtoAtualizado.getPreco() != null) {
+            validarPreco(produtoAtualizado.getPreco());
+            existente.setPreco(produtoAtualizado.getPreco());
         }
+        if (produtoAtualizado.getDisponivel() != null) existente.setDisponivel(produtoAtualizado.getDisponivel());
+
+        return produtoRepository.save(existente);
+    }
+
+    @Override
+    @Transactional
+    public void inativar(Long id) {
+        var existente = produtoRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Produto não encontrado: " + id));
+        existente.setDisponivel(false);
+        produtoRepository.save(existente);
+    }
+
+    @Override
+    @Transactional
+    public void deletar(Long id) {
+        if (!produtoRepository.existsById(id)) {
+            throw new NoSuchElementException("Produto não encontrado: " + id);
+        }
+        produtoRepository.deleteById(id);
+    }
+
+    // === BUSCAS ESPECÍFICAS ===
+    @Override
+    public List<Produto> buscarPorRestaurante(Long restauranteId) {
         return produtoRepository.findByRestauranteId(restauranteId);
     }
 
-    /**
-     * Lista produtos disponíveis por restaurante
-     */
     @Override
-    @Transactional(readOnly = true)
-    public List<Produto> listarDisponiveisPorRestaurante(Long restauranteId) {
-        log.info("Listando produtos disponíveis do restaurante ID: {}", restauranteId);
-        // Verificar se restaurante existe
-        if (!restauranteService.buscarPorId(restauranteId).isPresent()) {
-            throw new IllegalArgumentException("Restaurante não encontrado: " + restauranteId);
-        }
-        return produtoRepository.findByRestauranteIdAndDisponivelTrue(restauranteId);
+    public List<Produto> buscarPorCategoria(String categoria) {
+        return produtoRepository.findByCategoriaIgnoreCase(categoria);
     }
 
-    /**
-     * Atualiza dados do produto
-     */
     @Override
-    public Produto atualizar(Long id, ProdutoRequest produtoRequest) {
-        log.info("Atualizando produto ID: {}", id);
-        
-        // Buscar o produto pelo ID
-        Produto produto = buscarPorId(id)
-            .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado: " + id));
-        
-        // Verificar se o restaurante existe
-        Restaurante restaurante = restauranteService.buscarPorId(produtoRequest.getRestauranteId())
-            .orElseThrow(() -> new IllegalArgumentException("Restaurante não encontrado: " + produtoRequest.getRestauranteId()));
-        
-        // Verificar se o produto pertence ao restaurante informado
-        if (!produto.getRestaurante().getId().equals(restaurante.getId())) {
-            throw new IllegalArgumentException("O produto não pertence ao restaurante informado");
-        }
-
-        // Atualizar dados do produto
-        produto.setNome(produtoRequest.getNome());
-        produto.setDescricao(produtoRequest.getDescricao());
-        produto.setPreco(produtoRequest.getPreco());
-        produto.setCategoria(produtoRequest.getCategoria());
-        produto.setImagemUrl(produtoRequest.getImagemUrl());
-        
-        if (produtoRequest.getDisponivel() != null) {
-            produto.setDisponivel(produtoRequest.getDisponivel());
-        }
-        
-        // Validar dados atualizados
-        validarDadosProduto(produto);
-        
-        Produto produtoSalvo = produtoRepository.save(produto);
-        log.info("Produto atualizado com sucesso - ID: {}", produtoSalvo.getId());
-        
-        return produtoSalvo;
+    public List<Produto> listarDisponiveis() {
+        return produtoRepository.findByDisponivelTrue();
     }
 
-    /**
-     * Exclui produto (fisicamente do banco)
-     */
     @Override
-    public void excluir(Long id) {
-        log.info("Excluindo produto ID: {}", id);
-        
-        Produto produto = buscarPorId(id)
-            .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado: " + id));
-        
-        try {
-            produtoRepository.delete(produto);
-            log.info("Produto excluído com sucesso - ID: {}", id);
-        } catch (Exception e) {
-            log.error("Erro ao excluir produto - ID: {}", id, e);
-            throw new IllegalStateException("Não foi possível excluir o produto. Ele pode estar associado a pedidos.");
+    public List<Produto> buscarPorNome(String nome) {
+        return produtoRepository.findByNomeContainingIgnoreCase(nome);
+    }
+
+    // === REGRAS DE NEGÓCIO ===
+    @Override
+    @Transactional
+    public void alterarDisponibilidade(Long id, boolean disponivel) {
+        var existente = produtoRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Produto não encontrado: " + id));
+        existente.setDisponivel(disponivel);
+        produtoRepository.save(existente);
+    }
+
+    @Override
+    public void validarPreco(BigDecimal preco) {
+        if (preco == null || preco.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Preço deve ser maior que zero.");
         }
     }
 
-    /**
-     * Alterna disponibilidade do produto
-     */
-    @Override
-    public Produto alterarDisponibilidade(Long id) {
-        log.info("Alterando disponibilidade do produto ID: {}", id);
-        
-        Produto produto = buscarPorId(id)
-            .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado: " + id));
-        
-        produto.setDisponivel(!produto.getDisponivel());
-        Produto produtoSalvo = produtoRepository.save(produto);
-        
-        String status = produtoSalvo.getDisponivel() ? "disponibilizado" : "indisponibilizado";
-        log.info("Produto {} com sucesso - ID: {}", status, id);
-        
-        return produtoSalvo;
+    // Repositórios didáticos (substitua pelos reais do projeto)
+    public interface ProdutoRepository {
+        Produto save(Produto p);
+        Optional<Produto> findById(Long id);
+        boolean existsById(Long id);
+        void deleteById(Long id);
+        List<Produto> findAll();
+        List<Produto> findByRestauranteId(Long restauranteId);
+        List<Produto> findByCategoriaIgnoreCase(String categoria);
+        List<Produto> findByDisponivelTrue();
+        List<Produto> findByNomeContainingIgnoreCase(String nome);
     }
 
-    /**
-     * Busca produtos por nome e restaurante
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public List<Produto> buscarPorNome(Long restauranteId, String nome) {
-        log.info("Buscando produtos por nome: {} no restaurante ID: {}", nome, restauranteId);
-        
-        // Verificar se restaurante existe
-        if (!restauranteService.buscarPorId(restauranteId).isPresent()) {
-            throw new IllegalArgumentException("Restaurante não encontrado: " + restauranteId);
-        }
-        
-        return produtoRepository.findByRestauranteIdAndNomeContainingIgnoreCase(restauranteId, nome);
-    }
-
-    /**
-     * Busca produtos por categoria e restaurante
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public List<Produto> buscarPorCategoria(Long restauranteId, String categoria) {
-        log.info("Buscando produtos por categoria: {} no restaurante ID: {}", categoria, restauranteId);
-        
-        // Verificar se restaurante existe
-        if (!restauranteService.buscarPorId(restauranteId).isPresent()) {
-            throw new IllegalArgumentException("Restaurante não encontrado: " + restauranteId);
-        }
-        
-        return produtoRepository.findByRestauranteIdAndCategoriaContainingIgnoreCase(restauranteId, categoria);
-    }
-
-    /**
-     * Busca produtos por faixa de preço e restaurante
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public List<Produto> buscarPorFaixaDePreco(Long restauranteId, BigDecimal precoMin, BigDecimal precoMax) {
-        log.info("Buscando produtos por faixa de preço: {} - {} no restaurante ID: {}", 
-                precoMin, precoMax, restauranteId);
-        
-        // Verificar se restaurante existe
-        if (!restauranteService.buscarPorId(restauranteId).isPresent()) {
-            throw new IllegalArgumentException("Restaurante não encontrado: " + restauranteId);
-        }
-        
-        if (precoMin == null) {
-            precoMin = BigDecimal.ZERO;
-        }
-        
-        if (precoMax == null) {
-            precoMax = new BigDecimal("999999.99");
-        }
-        
-        if (precoMin.compareTo(precoMax) > 0) {
-            throw new IllegalArgumentException("Preço mínimo não pode ser maior que o preço máximo");
-        }
-        
-        return produtoRepository.findByRestauranteIdAndPrecoBetween(restauranteId, precoMin, precoMax);
-    }
-
-    /**
-     * Produtos mais vendidos por restaurante
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public List<Produto> produtosMaisVendidos(Long restauranteId) {
-        log.info("Buscando produtos mais vendidos do restaurante ID: {}", restauranteId);
-        
-        // Verificar se restaurante existe
-        if (!restauranteService.buscarPorId(restauranteId).isPresent()) {
-            throw new IllegalArgumentException("Restaurante não encontrado: " + restauranteId);
-        }
-        
-        return produtoRepository.findMostSoldProductsByRestaurante(restauranteId);
-    }
-
-    /**
-     * Validações de negócio para produtos
-     */
-    private void validarDadosProduto(Produto produto) {
-        if (produto.getNome() == null || produto.getNome().trim().isEmpty()) {
-            throw new IllegalArgumentException("Nome é obrigatório");
-        }
-
-        if (produto.getNome().length() < 3) {
-            throw new IllegalArgumentException("Nome deve ter pelo menos 3 caracteres");
-        }
-
-        if (produto.getNome().length() > 100) {
-            throw new IllegalArgumentException("Nome não pode ter mais de 100 caracteres");
-        }
-
-        if (produto.getPreco() == null) {
-            throw new IllegalArgumentException("Preço é obrigatório");
-        }
-
-        if (produto.getPreco().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Preço deve ser maior que zero");
-        }
-
-        if (produto.getCategoria() == null || produto.getCategoria().trim().isEmpty()) {
-            throw new IllegalArgumentException("Categoria é obrigatória");
-        }
-
-        if (produto.getRestaurante() == null) {
-            throw new IllegalArgumentException("Restaurante é obrigatório");
-        }
+    public interface RestauranteRepository {
+        Optional<Object> findById(Long id);
     }
 }
