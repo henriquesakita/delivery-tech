@@ -1,80 +1,169 @@
 package com.deliverytech.delivery_api.controller;
 
-import com.deliverytech.delivery_api.dto.request.ClienteRequest;
-import com.deliverytech.delivery_api.dto.response.ClienteResponse;
-import com.deliverytech.delivery_api.service.ClienteService;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
-
-import jakarta.validation.Valid;
+import com.deliverytech.delivery_api.model.Cliente;
+import com.deliverytech.delivery_api.dto.request.ClienteRequest; // ✅ ADICIONAR IMPORT
+import com.deliverytech.delivery_api.dto.response.ApiResponseWrapper;
+import com.deliverytech.delivery_api.service.ClienteService; // ✅ INTERFACE
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/clientes")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
-@Tag(name = "Cliente", description = "Operações relacionadas ao gerenciamento de clientes")
 public class ClienteController {
 
-    private final ClienteService clienteService;
+    private final ClienteService clienteService; // ✅ INJEÇÃO DA INTERFACE
 
+    /**
+     * Cadastrar novo cliente
+     * POST /clientes
+     */
     @PostMapping
-    @Operation(summary = "Criar novo cliente", description = "Cria um novo cliente no sistema")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Cliente criado com sucesso"),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos")
-    })
-    public ResponseEntity<ClienteResponse> criar(@RequestBody @Valid ClienteRequest request) {
-        return ResponseEntity.status(201).body(clienteService.criar(request));
+    public ResponseEntity<?> cadastrar(@Valid @RequestBody ClienteRequest clienteRequest) {
+        try {
+            log.info("Recebida requisição para cadastrar cliente: {}", clienteRequest.getEmail());
+            Cliente clienteSalvo = clienteService.cadastrar(clienteRequest);
+            return ResponseEntity.status(HttpStatus.CREATED).body(clienteSalvo);
+        } catch (IllegalArgumentException e) {
+            log.warn("Erro de validação ao cadastrar cliente: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Erro: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Erro interno ao cadastrar cliente", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Erro interno do servidor");
+        }
     }
 
+    /**
+     * Listar todos os clientes ativos
+     * GET /clientes
+     */
     @GetMapping
-    @Operation(summary = "Listar todos os clientes", description = "Retorna lista de todos os clientes cadastrados")
-    @ApiResponse(responseCode = "200", description = "Lista de clientes retornada com sucesso")
-    public List<ClienteResponse> listar() {
-        return clienteService.listar();
+    public ResponseEntity<List<Cliente>> listar() {
+        log.info("Recebida requisição para listar clientes ativos");
+        List<Cliente> clientes = clienteService.listarAtivos();
+        return ResponseEntity.ok(clientes);
     }
 
+    /**
+     * Buscar cliente por ID
+     * GET /clientes/{id}
+     */
     @GetMapping("/{id}")
-    @Operation(summary = "Buscar cliente por ID", description = "Retorna um cliente específico pelo seu ID")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-            @ApiResponse(responseCode = "404", description = "Cliente não encontrado")
-    })
-    public ResponseEntity<ClienteResponse> buscarPorId(
-            @Parameter(description = "ID do cliente") @PathVariable Long id) {
-        return ResponseEntity.ok(clienteService.buscarPorId(id));
+    public ResponseEntity<ApiResponseWrapper<Cliente>> buscarPorId(@PathVariable Long id) {
+        log.info("Recebida requisição para buscar cliente ID: {}", id);
+        Optional<Cliente> cliente = clienteService.buscarPorId(id);
+
+        if (cliente.isPresent()) {
+            return ResponseEntity.ok(ApiResponseWrapper.success(cliente.get(), "Cliente encontrado"));
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponseWrapper.error("Cliente não encontrado"));
+        }
     }
 
+    /**
+     * Buscar cliente por email
+     * GET /clientes/email/{email}
+     */
+    @GetMapping("/email/{email}")
+    public ResponseEntity<?> buscarPorEmail(@PathVariable String email) {
+        log.info("Recebida requisição para buscar cliente por email: {}", email);
+        Optional<Cliente> cliente = clienteService.buscarPorEmail(email);
+
+        if (cliente.isPresent()) {
+            return ResponseEntity.ok(cliente.get());
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Buscar clientes por nome
+     * GET /clientes/buscar?nome=João
+     */
+    @GetMapping("/buscar")
+    public ResponseEntity<List<Cliente>> buscarPorNome(@RequestParam String nome) {
+        log.info("Recebida requisição para buscar clientes por nome: {}", nome);
+        List<Cliente> clientes = clienteService.buscarPorNome(nome);
+        return ResponseEntity.ok(clientes);
+    }
+
+    /**
+     * Atualizar cliente
+     * PUT /api/clientes/{id}
+     */
     @PutMapping("/{id}")
-    @Operation(summary = "Atualizar cliente", description = "Atualiza os dados de um cliente existente")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Cliente atualizado com sucesso"),
-            @ApiResponse(responseCode = "404", description = "Cliente não encontrado"),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos")
-    })
-    public ResponseEntity<ClienteResponse> atualizar(@Parameter(description = "ID do cliente") @PathVariable Long id,
-            @RequestBody @Valid ClienteRequest request) {
-        return ResponseEntity.ok(clienteService.atualizar(id, request));
+    public ResponseEntity<?> atualizar(@PathVariable Long id,
+                                      @Valid @RequestBody ClienteRequest clienteRequest) { // ✅ ALTERAR: Cliente → ClienteRequest
+        try {
+            log.info("Recebida requisição para atualizar cliente ID: {}", id);
+            Cliente clienteAtualizado = clienteService.atualizar(id, clienteRequest); // ✅ ALTERAR se o service suportar
+            return ResponseEntity.ok(clienteAtualizado);
+        } catch (IllegalArgumentException e) {
+            log.warn("Erro de validação ao atualizar cliente: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Erro: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Erro interno ao atualizar cliente", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Erro interno do servidor");
+        }
     }
 
+    /**
+     * Inativar cliente (soft delete)
+     * DELETE /clientes/{id}
+     */
     @DeleteMapping("/{id}")
-    @Operation(summary = "Deletar cliente", description = "Remove um cliente do sistema")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "204", description = "Cliente deletado com sucesso"),
-            @ApiResponse(responseCode = "404", description = "Cliente não encontrado")
-    })
+    public ResponseEntity<?> inativar(@PathVariable Long id) {
+        try {
+            log.info("Recebida requisição para inativar cliente ID: {}", id);
+            clienteService.inativar(id);
+            return ResponseEntity.ok().body("Cliente inativado com sucesso");
+        } catch (IllegalArgumentException e) {
+            log.warn("Erro ao inativar cliente: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Erro: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Erro interno ao inativar cliente", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Erro interno do servidor");
+        }
+    }
 
-    public ResponseEntity<Void> deletar(@Parameter(description = "ID do cliente") @PathVariable Long id) {
-        clienteService.deletar(id);
-        return ResponseEntity.noContent().build();
+    /**
+     * Ativar/Desativar cliente (toggle status ativo)
+     * PATCH /api/clientes/{id}/status
+     */
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<?> ativarDesativarCliente(@PathVariable Long id) {
+        try {
+            log.info("Recebida requisição para alterar status do cliente ID: {}", id);
+            Cliente clienteAtualizado = clienteService.ativarDesativarCliente(id);
+            
+            String status = clienteAtualizado.getAtivo() ? "ativado" : "desativado";
+            return ResponseEntity.ok()
+                .body(Map.of(
+                    "mensagem", "Cliente " + status + " com sucesso",
+                    "cliente", clienteAtualizado
+                ));
+            
+        } catch (IllegalArgumentException e) {
+            log.warn("Erro ao alterar status do cliente: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Erro: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Erro interno ao alterar status do cliente", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Erro interno do servidor");
+        }
     }
 }
- 
