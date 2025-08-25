@@ -1,125 +1,146 @@
 package com.deliverytech.delivery_api.service.impl;
 
-import com.deliverytech.delivery_api.model.Pedido;
 import com.deliverytech.delivery_api.model.Produto;
-import com.deliverytech.delivery_api.service.PedidoService;
+import com.deliverytech.delivery_api.repository.ProdutoRepository;
+import com.deliverytech.delivery_api.service.ProdutoService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j; //ADICIONAR ESTE IMPORT
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 
+@Slf4j // ADICIONAR ESTA ANOTAÇÃO
 @Service
-@Transactional(readOnly = true)
-public class PedidoServiceImpl implements PedidoService {
+@RequiredArgsConstructor
+@Transactional  // ADICIONADO: Para operações de escrita
+public class ProdutoServiceImpl implements ProdutoService {
 
-    private final PedidoRepository pedidoRepository;
     private final ProdutoRepository produtoRepository;
 
-    public PedidoServiceImpl(PedidoRepository pedidoRepository,
-                             ProdutoRepository produtoRepository) {
-        this.pedidoRepository = pedidoRepository;
-        this.produtoRepository = produtoRepository;
-    }
-
     @Override
-    @Transactional
-    public Pedido criar(Pedido pedido) {
-        // Exemplo: valida itens e calcula total inicial
-        if (pedido.getItens() == null || pedido.getItens().isEmpty()) {
-            throw new IllegalArgumentException("Pedido deve conter itens.");
+    public Produto cadastrar(Produto produto) {
+        // MELHORADO: Validar preço antes de cadastrar
+        validarPreco(produto.getPreco());
+        
+        // MELHORADO: Definir disponível como true por padrão
+        if (produto.getDisponivel() == null) {
+            produto.setDisponivel(true);
         }
-
-        BigDecimal total = BigDecimal.ZERO;
-        for (var item : pedido.getItens()) {
-            Produto p = produtoRepository.findById(item.getProduto().getId())
-                    .orElseThrow(() -> new NoSuchElementException("Produto inexistente no item."));
-            if (Boolean.FALSE.equals(p.getDisponivel())) {
-                throw new IllegalStateException("Produto indisponível: " + p.getNome());
-            }
-            BigDecimal subtotal = p.getPreco().multiply(BigDecimal.valueOf(item.getQuantidade()));
-            total = total.add(subtotal);
-            // opcional: copiar preço atual para o item, evitando variação posterior
-            item.setPrecoUnitario(p.getPreco());
-        }
-        pedido.setTotal(total);
-        pedido.setStatus(StatusPedido.CRIADO);
-        return pedidoRepository.save(pedido);
+        
+        return produtoRepository.save(produto);
     }
 
     @Override
-    public Optional<Pedido> buscarPorId(Long id) {
-        return pedidoRepository.findById(id);
+    public Optional<Produto> buscarPorId(Long id) {
+        return produtoRepository.findById(id);
     }
 
     @Override
-    public List<Pedido> listarTodos() {
-        return pedidoRepository.findAll();
+    public List<Produto> listarTodos() {
+        return produtoRepository.findAll();
     }
 
     @Override
-    public List<Pedido> listarPorCliente(Long clienteId) {
-        return pedidoRepository.findByClienteId(clienteId);
+    public Produto atualizar(Long id, Produto atualizado) {
+        return produtoRepository.findById(id)
+            .map(produto -> {
+                // MELHORADO: Validar preço se foi alterado
+                if (atualizado.getPreco() != null) {
+                    validarPreco(atualizado.getPreco());
+                    produto.setPreco(atualizado.getPreco());
+                }
+                
+                if (atualizado.getNome() != null) {
+                    produto.setNome(atualizado.getNome());
+                }
+                if (atualizado.getDescricao() != null) {
+                    produto.setDescricao(atualizado.getDescricao());
+                }
+                if (atualizado.getCategoria() != null) {
+                    produto.setCategoria(atualizado.getCategoria());
+                }
+                
+                return produtoRepository.save(produto);
+            })
+            .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
     }
 
     @Override
-    @Transactional
-    public Pedido atualizarStatus(Long id, StatusPedido novoStatus) {
-        var pedido = pedidoRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Pedido não encontrado: " + id));
-
-        // Regras simples de transição de status (exemplo)
-        if (pedido.getStatus() == StatusPedido.CANCELADO) {
-            throw new IllegalStateException("Pedido cancelado não pode mudar de status.");
-        }
-        pedido.setStatus(novoStatus);
-        return pedidoRepository.save(pedido);
-    }
-
-    @Override
-    @Transactional
-    public void cancelar(Long id, String motivo) {
-        var pedido = pedidoRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Pedido não encontrado: " + id));
-        if (pedido.getStatus() == StatusPedido.ENTREGUE) {
-            throw new IllegalStateException("Pedido entregue não pode ser cancelado.");
-        }
-        pedido.setStatus(StatusPedido.CANCELADO);
-        pedido.setMotivoCancelamento(motivo);
-        pedidoRepository.save(pedido);
-    }
-
-    @Override
-    public BigDecimal calcularTotal(Long id) {
-        var pedido = pedidoRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Pedido não encontrado: " + id));
-        return pedido.getTotal();
-    }
-
-    @Override
-    @Transactional
     public void deletar(Long id) {
-        if (!pedidoRepository.existsById(id)) {
-            throw new NoSuchElementException("Pedido não encontrado: " + id);
+        if (!produtoRepository.existsById(id)) {
+            throw new RuntimeException("Produto não encontrado - ID: " + id);
         }
-        pedidoRepository.deleteById(id);
+        produtoRepository.deleteById(id);
+        log.info("Produto deletado - ID: {}", id); //Agora funciona
     }
 
-    // Tipos auxiliares didáticos
-    public enum StatusPedido { CRIADO, EM_PREPARO, SAIU_PARA_ENTREGA, ENTREGUE, CANCELADO }
-
-    public interface PedidoRepository {
-        Pedido save(Pedido p);
-        Optional<Pedido> findById(Long id);
-        boolean existsById(Long id);
-        void deleteById(Long id);
-        List<Pedido> findAll();
-        List<Pedido> findByClienteId(Long clienteId);
+    @Override
+    public void inativar(Long id) {
+        produtoRepository.findById(id)
+            .ifPresentOrElse(
+                produto -> {
+                    produto.setDisponivel(false);
+                    produtoRepository.save(produto);
+                    log.info("Produto inativado - ID: {}", id); // ✅ Agora funciona
+                },
+                () -> {
+                    throw new RuntimeException("Produto não encontrado - ID: " + id);
+                }
+            );
     }
 
-    public interface ProdutoRepository {
-        Optional<Produto> findById(Long id);
+    @Override
+    public List<Produto> buscarPorRestaurante(Long restauranteId) {
+        return produtoRepository.findByRestauranteId(restauranteId);
+    }
+
+    @Override
+    public List<Produto> buscarPorCategoria(String categoria) {
+        return produtoRepository.findByCategoria(categoria);
+    }
+
+    @Override
+    public List<Produto> listarDisponiveis() {
+        return produtoRepository.findByDisponivelTrue();
+    }
+
+    @Override
+    public void alterarDisponibilidade(Long id, boolean disponivel) {
+        produtoRepository.findById(id)
+            .ifPresentOrElse(produto -> {
+                produto.setDisponivel(disponivel);
+                produtoRepository.save(produto);
+            }, () -> {
+                throw new RuntimeException("Produto não encontrado");
+            });
+    }
+
+    @Override
+    public void validarPreco(BigDecimal preco) {
+        // CORRIGIDO: Assinatura void conforme interface
+        if (preco == null) {
+            throw new IllegalArgumentException("Preço não pode ser nulo");
+        }
+        
+        if (preco.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Preço deve ser maior que zero");
+        }
+        
+        // ADICIONADO: Validação de preço máximo razoável
+        BigDecimal precoMaximo = new BigDecimal("99999.99");
+        if (preco.compareTo(precoMaximo) > 0) {
+            throw new IllegalArgumentException("Preço não pode ser superior a R$ 99.999,99");
+        }
+    }
+
+    @Override
+    public List<Produto> buscarPorNome(String nome) {
+        if (nome == null || nome.trim().isEmpty()) {
+            return List.of(); // Retorna lista vazia se nome for nulo ou vazio
+        }
+        return produtoRepository.findByNomeContainingIgnoreCase(nome.trim());
     }
 }
