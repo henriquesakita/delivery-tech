@@ -1,6 +1,5 @@
 package com.deliverytech.delivery_api.service;
 
-import com.deliverytech.delivery_api.dto.request.ProdutoRequest;
 import com.deliverytech.delivery_api.model.Produto;
 
 import java.math.BigDecimal;
@@ -8,21 +7,22 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProdutoService {
+    // === OPERAÇÕES BÁSICAS ===
+    Produto cadastrar(Produto produto);                        
+    Optional<Produto> buscarPorId(Long id);                   
+    List<Produto> listarTodos();                              
+    Produto atualizar(Long id, Produto produtoAtualizado);    
+    void inativar(Long id);                                   
+    void deletar(Long id);
     
-    // Operações básicas
-    Produto cadastrar(ProdutoRequest produtoRequest);
-    Optional<Produto> buscarPorId(Long id);
-    List<Produto> listarPorRestaurante(Long restauranteId);
-    List<Produto> listarDisponiveisPorRestaurante(Long restauranteId);
-    Produto atualizar(Long id, ProdutoRequest produtoRequest);
-    void excluir(Long id);
+    // === BUSCAS ESPECÍFICAS ===
+    List<Produto> buscarPorRestaurante(Long restauranteId);   
+    List<Produto> buscarPorCategoria(String categoria);       
+    List<Produto> listarDisponiveis();
+    List<Produto> buscarPorNome(String nome);
+
     
-    // Operações de disponibilidade
-    Produto alterarDisponibilidade(Long id);
-    
-    // Consultas especializadas
-    List<Produto> buscarPorNome(Long restauranteId, String nome);
-    List<Produto> buscarPorCategoria(Long restauranteId, String categoria);
-    List<Produto> buscarPorFaixaDePreco(Long restauranteId, BigDecimal precoMin, BigDecimal precoMax);
-    List<Produto> produtosMaisVendidos(Long restauranteId);
+    // === REGRAS DE NEGÓCIO ===
+    void alterarDisponibilidade(Long id, boolean disponivel); 
+    void validarPreco(BigDecimal preco);
 }

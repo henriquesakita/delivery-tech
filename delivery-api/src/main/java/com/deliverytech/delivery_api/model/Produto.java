@@ -1,16 +1,8 @@
 package com.deliverytech.delivery_api.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import jakarta.persistence.*;
+import lombok.*;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Data
@@ -19,48 +11,29 @@ import java.util.List;
 @Builder
 public class Produto {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     private String nome;
-    
-    @Column(length = 1000)
-    private String descricao;
-    
-    @Column(nullable = false)
-    private BigDecimal preco;
-    
+
     private String categoria;
-    
-    @Column(length = 255)
-    private String imagemUrl;
-    
+
+    private String descricao;
+
+    private BigDecimal preco;
+
     @Builder.Default
     private Boolean disponivel = true;
-    
-    @Builder.Default
-    private LocalDateTime dataCadastro = LocalDateTime.now();
-    
-    // Relacionamento com Restaurante (muitos-para-um)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "restaurante_id", nullable = false)
-    @JsonIgnore
+
+    @ManyToOne
+    @JoinColumn(name = "restaurante_id")
     private Restaurante restaurante;
-    
-    // Relacionamento com ItemPedido (um-para-muitos)
-    @OneToMany(mappedBy = "produto")
-    @JsonIgnore
-    private List<ItemPedido> itensPedido = new ArrayList<>();
-    
-    // Métodos auxiliares
-    @JsonIgnore
-    public void indisponibilizar() {
-        this.disponivel = false;
+
+    public boolean getAtivo() {
+        return this.disponivel != null ? this.disponivel : false;
     }
-    
-    @JsonIgnore
-    public void disponibilizar() {
-        this.disponivel = true;
+
+    public void setAtivo(boolean ativo) {
+        this.disponivel = ativo;
     }
 }

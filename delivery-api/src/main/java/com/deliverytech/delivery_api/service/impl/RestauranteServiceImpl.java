@@ -1,18 +1,17 @@
 package com.deliverytech.delivery_api.service.impl;
 
-import com.deliverytech.delivery_api.dto.request.RestauranteRequest;
 import com.deliverytech.delivery_api.model.Restaurante;
+import com.deliverytech.delivery_api.dto.request.RestauranteRequest;
 import com.deliverytech.delivery_api.repository.RestauranteRepository;
 import com.deliverytech.delivery_api.service.RestauranteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-
-@Slf4j
+@Slf4j 
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -20,231 +19,234 @@ public class RestauranteServiceImpl implements RestauranteService {
 
     private final RestauranteRepository restauranteRepository;
 
-    /**
-     * Cadastra um novo restaurante
-     */
     @Override
     public Restaurante cadastrar(RestauranteRequest restauranteRequest) {
         log.info("Iniciando cadastro de restaurante: {}", restauranteRequest.getNome());
         
-        // Converter RestauranteRequest para Restaurante
         Restaurante restaurante = new Restaurante();
         restaurante.setNome(restauranteRequest.getNome());
-        restaurante.setCnpj(restauranteRequest.getCnpj());
-        restaurante.setEndereco(restauranteRequest.getEndereco());
+        restaurante.setCategoria(restauranteRequest.getCategoria());
+/*         restaurante.setEndereco(restauranteRequest.getEndereco()); */
+        restaurante.setTaxaEntrega(restauranteRequest.getTaxaEntrega());
         restaurante.setTelefone(restauranteRequest.getTelefone());
-        restaurante.setEspecialidade(restauranteRequest.getEspecialidade());
-        restaurante.setDescricao(restauranteRequest.getDescricao());
-        restaurante.setHorarioFuncionamento(restauranteRequest.getHorarioFuncionamento());
-        
-        // Validar CNPJ único
-        if (restauranteRepository.existsByCnpj(restaurante.getCnpj())) {
-            throw new IllegalArgumentException("CNPJ já cadastrado: " + restaurante.getCnpj());
-        }
-        
-        // Validações de negócio
-        validarDadosRestaurante(restaurante);
-        
-        // Definir como ativo por padrão
+/*         restaurante.setEmail(restauranteRequest.getEmail()); */
+        restaurante.setTempoEntregaMinutos(restauranteRequest.getTempoEntregaMinutos()); 
         restaurante.setAtivo(true);
         
-        Restaurante restauranteSalvo = restauranteRepository.save(restaurante);
-        log.info("Restaurante cadastrado com sucesso - ID: {}", restauranteSalvo.getId());
+        Restaurante salvo = restauranteRepository.save(restaurante);
+        log.info("Restaurante cadastrado com sucesso - ID: {}", salvo.getId());
         
-        return restauranteSalvo;
+        return salvo;
     }
 
-    /**
-     * Busca restaurante por ID
-     */
     @Override
     @Transactional(readOnly = true)
     public Optional<Restaurante> buscarPorId(Long id) {
-        log.info("Buscando restaurante por ID: {}", id);
         return restauranteRepository.findById(id);
     }
 
-    /**
-     * Busca restaurante por CNPJ
-     */
     @Override
     @Transactional(readOnly = true)
-    public Optional<Restaurante> buscarPorCnpj(String cnpj) {
-        log.info("Buscando restaurante por CNPJ: {}", cnpj);
-        return restauranteRepository.findByCnpj(cnpj);
+    public List<Restaurante> listarTodos() {
+        return restauranteRepository.findAll();
     }
 
-    /**
-     * Lista todos os restaurantes ativos
-     */
+    // ✅ IMPLEMENTAR MÉTODO FALTANTE
     @Override
     @Transactional(readOnly = true)
     public List<Restaurante> listarAtivos() {
-        log.info("Listando todos os restaurantes ativos");
         return restauranteRepository.findByAtivoTrue();
     }
 
-    /**
-     * Busca restaurantes por nome
-     */
     @Override
     @Transactional(readOnly = true)
-    public List<Restaurante> buscarPorNome(String nome) {
-        log.info("Buscando restaurantes por nome: {}", nome);
-        return restauranteRepository.findByNomeContainingIgnoreCase(nome);
+    public List<Restaurante> buscarPorCategoria(String categoria) {
+        return restauranteRepository.findByCategoria(categoria);
     }
 
-    /**
-     * Busca restaurantes por especialidade
-     */
+    // ✅ IMPLEMENTAR MÉTODO FALTANTE
     @Override
     @Transactional(readOnly = true)
-    public List<Restaurante> buscarPorEspecialidade(String especialidade) {
-        log.info("Buscando restaurantes por especialidade: {}", especialidade);
-        return restauranteRepository.findByEspecialidadeContainingIgnoreCase(especialidade);
+    public List<Restaurante> buscarPorAvaliacao(BigDecimal minAvaliacao) {
+        return restauranteRepository.findByAvaliacaoGreaterThanEqual(minAvaliacao);
     }
 
-    /**
-     * Atualiza dados do restaurante
-     */
+    // ✅ IMPLEMENTAR MÉTODO FALTANTE
     @Override
-    public Restaurante atualizar(Long id, RestauranteRequest restauranteRequest) {
-        log.info("Atualizando restaurante ID: {}", id);
-        
-        Restaurante restaurante = buscarPorId(id)
-            .orElseThrow(() -> new IllegalArgumentException("Restaurante não encontrado: " + id));
-
-        // Verificar se CNPJ não está sendo usado por outro restaurante
-        if (!restaurante.getCnpj().equals(restauranteRequest.getCnpj()) && 
-            restauranteRepository.existsByCnpj(restauranteRequest.getCnpj())) {
-            throw new IllegalArgumentException("CNPJ já cadastrado: " + restauranteRequest.getCnpj());
-        }
-
-        // Criar restaurante temporário para validação
-        Restaurante restauranteParaValidacao = new Restaurante();
-        restauranteParaValidacao.setNome(restauranteRequest.getNome());
-        restauranteParaValidacao.setCnpj(restauranteRequest.getCnpj());
-        restauranteParaValidacao.setEndereco(restauranteRequest.getEndereco());
-        restauranteParaValidacao.setTelefone(restauranteRequest.getTelefone());
-        restauranteParaValidacao.setEspecialidade(restauranteRequest.getEspecialidade());
-        restauranteParaValidacao.setDescricao(restauranteRequest.getDescricao());
-        restauranteParaValidacao.setHorarioFuncionamento(restauranteRequest.getHorarioFuncionamento());
-
-        // Validar dados atualizados
-        validarDadosRestaurante(restauranteParaValidacao);
-
-        // Atualizar campos
-        restaurante.setNome(restauranteRequest.getNome());
-        restaurante.setCnpj(restauranteRequest.getCnpj());
-        restaurante.setEndereco(restauranteRequest.getEndereco());
-        restaurante.setTelefone(restauranteRequest.getTelefone());
-        restaurante.setEspecialidade(restauranteRequest.getEspecialidade());
-        restaurante.setDescricao(restauranteRequest.getDescricao());
-        restaurante.setHorarioFuncionamento(restauranteRequest.getHorarioFuncionamento());
-        
-        Restaurante restauranteSalvo = restauranteRepository.save(restaurante);
-        log.info("Restaurante atualizado com sucesso - ID: {}", restauranteSalvo.getId());
-        
-        return restauranteSalvo;
+    @Transactional(readOnly = true)
+    public List<Restaurante> buscarPorTaxaEntrega(BigDecimal maxTaxa) {
+        return restauranteRepository.findByTaxaEntregaLessThanEqual(maxTaxa);
     }
 
-    /**
-     * Inativa restaurante (soft delete)
-     */
+    @Override
+    public Restaurante atualizar(Long id, RestauranteRequest atualizado) {
+        return restauranteRepository.findById(id)
+            .map(r -> {
+                r.setNome(atualizado.getNome());
+                r.setTelefone(atualizado.getTelefone());
+                r.setCategoria(atualizado.getCategoria());
+                r.setTaxaEntrega(atualizado.getTaxaEntrega());
+                r.setTempoEntregaMinutos(atualizado.getTempoEntregaMinutos());
+                return restauranteRepository.save(r);
+            }).orElseThrow(() -> new RuntimeException("Restaurante não encontrado"));
+    }
+
+    // ✅ IMPLEMENTAR MÉTODO FALTANTE
     @Override
     public void inativar(Long id) {
-        log.info("Inativando restaurante ID: {}", id);
-        
-        Restaurante restaurante = buscarPorId(id)
-            .orElseThrow(() -> new IllegalArgumentException("Restaurante não encontrado: " + id));
-        
-        restaurante.inativar();
-        restauranteRepository.save(restaurante);
-        
-        log.info("Restaurante inativado com sucesso - ID: {}", id);
+        restauranteRepository.findById(id)
+            .ifPresentOrElse(
+                restaurante -> {
+                    restaurante.setAtivo(false);
+                    restauranteRepository.save(restaurante);
+                    log.info("Restaurante inativado - ID: {}", id);
+                },
+                () -> {
+                    throw new RuntimeException("Restaurante não encontrado - ID: " + id);
+                }
+            );
     }
 
     /**
-     * Ativa/Desativa restaurante (toggle status)
-     */
-    @Override
-    public Restaurante ativarDesativarRestaurante(Long id) {
-        log.info("Alterando status do restaurante ID: {}", id);
-        
-        Restaurante restaurante = buscarPorId(id)
-            .orElseThrow(() -> new IllegalArgumentException("Restaurante não encontrado: " + id));
-        
-        restaurante.setAtivo(!restaurante.getAtivo());
-        Restaurante restauranteSalvo = restauranteRepository.save(restaurante);
-        
-        String statusAtual = restauranteSalvo.getAtivo() ? "ativado" : "desativado";
-        log.info("Restaurante {} com sucesso - ID: {}", statusAtual, id);
-        
-        return restauranteSalvo;
-    }
-
-    /**
-     * Busca restaurantes com produtos disponíveis
+     * Calcular taxa de entrega baseada no restaurante e CEP
+     * Lógica simplificada para demonstração
      */
     @Override
     @Transactional(readOnly = true)
-    public List<Restaurante> buscarComProdutosDisponiveis() {
-        log.info("Buscando restaurantes com produtos disponíveis");
-        return restauranteRepository.findRestaurantesWithProdutosDisponiveis();
+    public BigDecimal calcularTaxaEntrega(Long restauranteId, String cep) {
+        log.info("Calculando taxa de entrega - Restaurante ID: {}, CEP: {}", restauranteId, cep);
+        
+        // Buscar restaurante
+        Restaurante restaurante = restauranteRepository.findById(restauranteId)
+            .orElseThrow(() -> new RuntimeException("Restaurante não encontrado - ID: " + restauranteId));
+        
+        // Verificar se restaurante está ativo
+        if (!restaurante.getAtivo()) {
+            throw new RuntimeException("Restaurante não está disponível para entrega");
+        }
+        
+        // Lógica simplificada de cálculo baseada no CEP
+        BigDecimal taxaBase = restaurante.getTaxaEntrega();
+        
+        // Simular cálculo por região do CEP
+        String primeirosDigitos = cep.substring(0, Math.min(2, cep.length()));
+        
+        try {
+            int codigoRegiao = Integer.parseInt(primeirosDigitos);
+            
+            // Lógica de exemplo:
+            // CEP 01xxx-xxx (centro) = taxa normal
+            // CEP 02xxx-xxx a 05xxx-xxx = taxa + 20%
+            // CEP 06xxx-xxx a 09xxx-xxx = taxa + 50%
+            // Outros = taxa + 100%
+            
+            BigDecimal multiplicador;
+            if (codigoRegiao == 1) {
+                multiplicador = BigDecimal.ONE; // Taxa normal
+            } else if (codigoRegiao >= 2 && codigoRegiao <= 5) {
+                multiplicador = new BigDecimal("1.20"); // +20%
+            } else if (codigoRegiao >= 6 && codigoRegiao <= 9) {
+                multiplicador = new BigDecimal("1.50"); // +50%
+            } else {
+                multiplicador = new BigDecimal("2.00"); // +100%
+            }
+            
+            BigDecimal taxaFinal = taxaBase.multiply(multiplicador).setScale(2, BigDecimal.ROUND_HALF_UP);
+            
+            log.info("Taxa calculada: R$ {} (base: R$ {}, multiplicador: {})", 
+                    taxaFinal, taxaBase, multiplicador);
+            
+            return taxaFinal;
+            
+        } catch (NumberFormatException e) {
+            log.warn("CEP inválido: {}, usando taxa base", cep);
+            return taxaBase;
+        }
     }
 
     /**
-     * Ranking de restaurantes por número de pedidos
+     * Alterar status ativo/inativo do restaurante
+     */
+    @Override
+    public Restaurante alterarStatus(Long id, Boolean ativo) {
+        log.info("Alterando status do restaurante ID: {} para: {}", id, ativo);
+        
+        Restaurante restaurante = restauranteRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Restaurante não encontrado - ID: " + id));
+        
+        restaurante.setAtivo(ativo);
+        Restaurante salvo = restauranteRepository.save(restaurante);
+        
+        log.info("Status do restaurante {} alterado para: {}", id, ativo);
+        return salvo;
+    }
+
+    /**
+     * Buscar restaurantes próximos por CEP
+     * Lógica simplificada baseada nos primeiros dígitos do CEP
      */
     @Override
     @Transactional(readOnly = true)
-    public List<Object[]> rankingPorPedidos() {
-        log.info("Gerando ranking de restaurantes por pedidos");
-        return restauranteRepository.rankingRestaurantesPorPedidos();
+    public List<Restaurante> buscarProximos(String cep) {
+        log.info("Buscando restaurantes próximos ao CEP: {}", cep);
+        
+        // Lógica simplificada: considera próximos os restaurantes ativos
+        // Em um cenário real, seria feita integração com API de mapas
+        List<Restaurante> restaurantesAtivos = restauranteRepository.findByAtivoTrue();
+        
+        // Simular proximidade baseada no CEP
+        String primeirosDigitos = cep.substring(0, Math.min(2, cep.length()));
+        
+        try {
+            int codigoRegiao = Integer.parseInt(primeirosDigitos);
+            
+            // Filtrar restaurantes "próximos" baseado na região do CEP
+            // Para demonstração, considera próximo se código da região for <= 5
+            if (codigoRegiao <= 5) {
+                log.info("Encontrados {} restaurantes próximos ao CEP {}", restaurantesAtivos.size(), cep);
+                return restaurantesAtivos;
+            } else {
+                // Para regiões mais distantes, retorna apenas restaurantes com taxa <= 10.00
+                List<Restaurante> restaurantesProximos = restaurantesAtivos.stream()
+                    .filter(r -> r.getTaxaEntrega().compareTo(new BigDecimal("10.00")) <= 0)
+                    .toList();
+                
+                log.info("Encontrados {} restaurantes próximos ao CEP {} (região distante)", 
+                        restaurantesProximos.size(), cep);
+                return restaurantesProximos;
+            }
+            
+        } catch (NumberFormatException e) {
+            log.warn("CEP inválido: {}, retornando todos os restaurantes ativos", cep);
+            return restaurantesAtivos;
+        }
     }
 
     /**
-     * Validações de negócio
+     * Listar restaurantes com filtros opcionais
      */
-    private void validarDadosRestaurante(Restaurante restaurante) {
-        if (restaurante.getNome() == null || restaurante.getNome().trim().isEmpty()) {
-            throw new IllegalArgumentException("Nome é obrigatório");
+    @Override
+    @Transactional(readOnly = true)
+    public List<Restaurante> listarComFiltros(String categoria, Boolean ativo) {
+        log.info("Listando restaurantes com filtros - Categoria: {}, Ativo: {}", categoria, ativo);
+        
+        // Se nenhum filtro foi fornecido, retorna todos
+        if (categoria == null && ativo == null) {
+            return restauranteRepository.findAll();
         }
-
-        if (restaurante.getCnpj() == null || restaurante.getCnpj().trim().isEmpty()) {
-            throw new IllegalArgumentException("CNPJ é obrigatório");
+        
+        // Se apenas categoria foi fornecida
+        if (categoria != null && ativo == null) {
+            return restauranteRepository.findByCategoria(categoria);
         }
-
-        if (restaurante.getNome().length() < 3) {
-            throw new IllegalArgumentException("Nome deve ter pelo menos 3 caracteres");
+        
+        // Se apenas status ativo foi fornecido
+        if (categoria == null && ativo != null) {
+            return ativo ? restauranteRepository.findByAtivoTrue() 
+                         : restauranteRepository.findByAtivoFalse();
         }
-
-        if (restaurante.getNome().length() > 100) {
-            throw new IllegalArgumentException("Nome não pode ter mais de 100 caracteres");
-        }
-
-        if (restaurante.getCnpj().length() != 14 || !restaurante.getCnpj().matches("\\d+")) {
-            throw new IllegalArgumentException("CNPJ deve ter 14 dígitos numéricos");
-        }
-
-        if (restaurante.getEndereco() == null || restaurante.getEndereco().trim().isEmpty()) {
-            throw new IllegalArgumentException("Endereço é obrigatório");
-        }
-
-        if (restaurante.getTelefone() == null || restaurante.getTelefone().trim().isEmpty()) {
-            throw new IllegalArgumentException("Telefone é obrigatório");
-        }
-
-        if (!restaurante.getTelefone().matches("\\d{10,11}")) {
-            throw new IllegalArgumentException("Telefone deve ter entre 10 e 11 dígitos");
-        }
-
-        if (restaurante.getEspecialidade() == null || restaurante.getEspecialidade().trim().isEmpty()) {
-            throw new IllegalArgumentException("Especialidade é obrigatória");
-        }
-
-        if (restaurante.getHorarioFuncionamento() == null || restaurante.getHorarioFuncionamento().trim().isEmpty()) {
-            throw new IllegalArgumentException("Horário de funcionamento é obrigatório");
-        }
+        
+        // Se ambos os filtros foram fornecidos
+        return restauranteRepository.findByCategoriaAndAtivo(categoria, ativo);
     }
 }

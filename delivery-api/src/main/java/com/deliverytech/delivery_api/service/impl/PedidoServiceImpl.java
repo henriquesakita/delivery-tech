@@ -1,146 +1,276 @@
+
 package com.deliverytech.delivery_api.service.impl;
 
-import com.deliverytech.delivery_api.model.Produto;
+import com.deliverytech.delivery_api.dto.request.ItemPedidoRequest;
+import com.deliverytech.delivery_api.model.*;
+import com.deliverytech.delivery_api.repository.PedidoRepository;
 import com.deliverytech.delivery_api.repository.ProdutoRepository;
-import com.deliverytech.delivery_api.service.ProdutoService;
+import com.deliverytech.delivery_api.service.PedidoService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j; //ADICIONAR ESTE IMPORT
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-@Slf4j // ADICIONAR ESTA ANOTAÇÃO
+@Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional  // ADICIONADO: Para operações de escrita
-public class ProdutoServiceImpl implements ProdutoService {
+@Transactional
+public class PedidoServiceImpl implements PedidoService {
 
+    private final PedidoRepository pedidoRepository;
     private final ProdutoRepository produtoRepository;
 
     @Override
-    public Produto cadastrar(Produto produto) {
-        // MELHORADO: Validar preço antes de cadastrar
-        validarPreco(produto.getPreco());
+    public Pedido criar(Pedido pedido) {
+        // ✅ SIMPLIFICAR: Definir dados básicos do pedido
+        pedido.setStatus(StatusPedido.CRIADO); // ✅ USAR CRIADO ao invés de PENDENTE
+        pedido.setDataPedido(LocalDateTime.now());
+        pedido.setValorTotal(BigDecimal.ZERO); // ✅ Iniciar com valor zero
         
-        // MELHORADO: Definir disponível como true por padrão
-        if (produto.getDisponivel() == null) {
-            produto.setDisponivel(true);
+        // ✅ SALVAR e retornar o pedido
+        Pedido pedidoSalvo = pedidoRepository.save(pedido);
+        log.info("Pedido criado com sucesso - ID: {}", pedidoSalvo.getId());
+        
+        return pedidoSalvo;
+    }
+
+    // ✅ IMPLEMENTAR métodos básicos se não existirem
+    @Override
+    @Transactional(readOnly = true)
+    public Pedido buscarPorId(Long id) {
+        return pedidoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Pedido> buscarPorCliente(Long clienteId) {
+        return pedidoRepository.findByClienteId(clienteId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Pedido> buscarPorIdComItens(Long id) {
+        return pedidoRepository.findByIdWithItens(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Pedido> buscarPorClienteComItens(Long clienteId) {
+        return pedidoRepository.findByClienteIdWithItens(clienteId);
+    }
+
+    @Override
+    public Pedido adicionarItem(Long pedidoId, Long produtoId, Integer quantidade) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        Produto produto = produtoRepository.findById(produtoId)
+                .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+
+        // ✅ CRIAR item do pedido
+        ItemPedido item = ItemPedido.builder()
+                .pedido(pedido)
+                .produto(produto)
+                .quantidade(quantidade)
+                .precoUnitario(produto.getPreco())
+                .build();
+
+        // ✅ ADICIONAR item à lista
+        if (pedido.getItens() == null) {
+            pedido.setItens(new ArrayList<>());
+        }
+        pedido.getItens().add(item);
+
+        // ✅ RECALCULAR valor total
+        BigDecimal novoTotal = calcularTotal(pedido);
+        pedido.setValorTotal(novoTotal);
+
+        return pedidoRepository.save(pedido);
+    }
+
+    @Override
+    public Pedido confirmar(Long pedidoId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        pedido.setStatus(StatusPedido.CONFIRMADO);
+        return pedidoRepository.save(pedido);
+    }
+
+@Override
+@Transactional
+public Pedido atualizarStatus(Long pedidoId, StatusPedido novoStatus) {
+    log.info("Atualizando status do pedido {} para: {}", pedidoId, novoStatus);
+    
+    Pedido pedido = pedidoRepository.findById(pedidoId)
+        .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+    
+    log.info("Status atual do pedido {}: {}", pedidoId, pedido.getStatus());
+    
+    pedido.setStatus(novoStatus);
+    
+    Pedido salvo = pedidoRepository.save(pedido);
+    log.info("Status do pedido {} atualizado com sucesso para: {}", pedidoId, novoStatus);
+    
+    return salvo;
+}
+
+    // ✅ IMPLEMENTAR método calcularTotal
+    @Override
+    public BigDecimal calcularTotal(Pedido pedido) {
+        if (pedido.getItens() == null || pedido.getItens().isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        return pedido.getItens().stream()
+                .map(item -> item.getPrecoUnitario().multiply(BigDecimal.valueOf(item.getQuantidade())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    // ✅ ADICIONAR: Método faltante para buscar pedidos por restaurante
+    @Override
+    @Transactional(readOnly = true)
+    public List<Pedido> buscarPorRestaurante(Long restauranteId) {
+        return pedidoRepository.findByRestauranteId(restauranteId);
+    }
+
+    // ✅ ADICIONAR: Método para cancelar pedido
+    @Override
+    public Pedido cancelar(Long pedidoId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        // Verificar se pode cancelar
+        if (pedido.getStatus() == StatusPedido.ENTREGUE) {
+            throw new RuntimeException("Não é possível cancelar um pedido já entregue");
+        }
+        if (pedido.getStatus() == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido já está cancelado");
+        }
+
+        pedido.setStatus(StatusPedido.CANCELADO);
+        Pedido pedidoCancelado = pedidoRepository.save(pedido);
+        log.info("Pedido cancelado - ID: {}", pedidoId);
+        
+        return pedidoCancelado; // ✅ RETORNAR o pedido cancelado
+    }
+
+    // ✅ ADICIONAR: Método para buscar por status
+    @Override
+    @Transactional(readOnly = true)
+    public List<Pedido> buscarPorStatus(StatusPedido status) {
+        return pedidoRepository.findByStatus(status);
+    }
+
+    // ✅ ADICIONAR: Método para buscar por período
+    @Override
+    @Transactional(readOnly = true)
+    public List<Pedido> buscarPorPeriodo(LocalDateTime inicio, LocalDateTime fim) {
+        return pedidoRepository.findByDataPedidoBetween(inicio, fim);
+    }
+
+        @Override
+    @Transactional(readOnly = true)
+    public List<Pedido> listarTodos() {
+        return pedidoRepository.findAll();
+    }
+
+    /**
+     * Calcular total do pedido baseado nos itens (sem salvar)
+     * Para cotações e pré-cálculos - método requerido pela atividade
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public BigDecimal calcularTotalPedido(List<ItemPedidoRequest> itens) {
+        log.info("Calculando total do pedido com {} itens", itens.size());
+        
+        if (itens == null || itens.isEmpty()) {
+            log.warn("Lista de itens vazia, retornando total zero");
+            return BigDecimal.ZERO;
         }
         
-        return produtoRepository.save(produto);
+        BigDecimal total = BigDecimal.ZERO;
+        
+        for (ItemPedidoRequest itemRequest : itens) {
+            // Buscar produto para obter preço atual
+            Produto produto = produtoRepository.findById(itemRequest.getProdutoId()) // CORRIGIDO: itemDTO → itemRequest
+                .orElseThrow(() -> new RuntimeException("Produto não encontrado - ID: " + itemRequest.getProdutoId())); // CORRIGIDO
+            
+            // Validar disponibilidade
+            if (!produto.getAtivo()) {
+                throw new RuntimeException("Produto não está disponível - ID: " + itemRequest.getProdutoId()); // CORRIGIDO
+            }
+            
+            // Calcular subtotal do item
+            BigDecimal precoUnitario = produto.getPreco();
+            BigDecimal quantidade = BigDecimal.valueOf(itemRequest.getQuantidade()); // CORRIGIDO: itemDTO → itemRequest
+            BigDecimal subtotal = precoUnitario.multiply(quantidade);
+            
+            total = total.add(subtotal);
+            
+            log.debug("Item calculado - Produto: {}, Qtd: {}, Preço: R$ {}, Subtotal: R$ {}", 
+                    produto.getNome(), itemRequest.getQuantidade(), precoUnitario, subtotal); // CORRIGIDO: itemDTO → itemRequest
+        }
+        
+        log.info("Total calculado: R$ {}", total);
+        return total;
     }
 
     @Override
-    public Optional<Produto> buscarPorId(Long id) {
-        return produtoRepository.findById(id);
-    }
-
-    @Override
-    public List<Produto> listarTodos() {
-        return produtoRepository.findAll();
-    }
-
-    @Override
-    public Produto atualizar(Long id, Produto atualizado) {
-        return produtoRepository.findById(id)
-            .map(produto -> {
-                // MELHORADO: Validar preço se foi alterado
-                if (atualizado.getPreco() != null) {
-                    validarPreco(atualizado.getPreco());
-                    produto.setPreco(atualizado.getPreco());
-                }
-                
-                if (atualizado.getNome() != null) {
-                    produto.setNome(atualizado.getNome());
-                }
-                if (atualizado.getDescricao() != null) {
-                    produto.setDescricao(atualizado.getDescricao());
-                }
-                if (atualizado.getCategoria() != null) {
-                    produto.setCategoria(atualizado.getCategoria());
-                }
-                
-                return produtoRepository.save(produto);
-            })
-            .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
-    }
-
-    @Override
+    @Transactional
     public void deletar(Long id) {
-        if (!produtoRepository.existsById(id)) {
-            throw new RuntimeException("Produto não encontrado - ID: " + id);
-        }
-        produtoRepository.deleteById(id);
-        log.info("Produto deletado - ID: {}", id); //Agora funciona
+        Pedido pedido = pedidoRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+        pedidoRepository.delete(pedido);
+        log.info("Pedido deletado - ID: {}", id);
     }
 
     @Override
-    public void inativar(Long id) {
-        produtoRepository.findById(id)
-            .ifPresentOrElse(
-                produto -> {
-                    produto.setDisponivel(false);
-                    produtoRepository.save(produto);
-                    log.info("Produto inativado - ID: {}", id); // ✅ Agora funciona
-                },
-                () -> {
-                    throw new RuntimeException("Produto não encontrado - ID: " + id);
-                }
-            );
-    }
-
-    @Override
-    public List<Produto> buscarPorRestaurante(Long restauranteId) {
-        return produtoRepository.findByRestauranteId(restauranteId);
-    }
-
-    @Override
-    public List<Produto> buscarPorCategoria(String categoria) {
-        return produtoRepository.findByCategoria(categoria);
-    }
-
-    @Override
-    public List<Produto> listarDisponiveis() {
-        return produtoRepository.findByDisponivelTrue();
-    }
-
-    @Override
-    public void alterarDisponibilidade(Long id, boolean disponivel) {
-        produtoRepository.findById(id)
-            .ifPresentOrElse(produto -> {
-                produto.setDisponivel(disponivel);
-                produtoRepository.save(produto);
-            }, () -> {
-                throw new RuntimeException("Produto não encontrado");
-            });
-    }
-
-    @Override
-    public void validarPreco(BigDecimal preco) {
-        // CORRIGIDO: Assinatura void conforme interface
-        if (preco == null) {
-            throw new IllegalArgumentException("Preço não pode ser nulo");
+    @Transactional(readOnly = true)
+    public List<Pedido> listarComFiltros(StatusPedido status, LocalDate dataInicio, LocalDate dataFim) {
+        log.info("Listando pedidos com filtros - Status: {}, Data início: {}, Data fim: {}", status, dataInicio, dataFim);
+        
+        // Se nenhum filtro foi fornecido, retorna todos
+        if (status == null && dataInicio == null && dataFim == null) {
+            return pedidoRepository.findAll();
         }
         
-        if (preco.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Preço deve ser maior que zero");
+        // Converter LocalDate para LocalDateTime para comparação
+        LocalDateTime inicioDateTime = dataInicio != null ? dataInicio.atStartOfDay() : null;
+        LocalDateTime fimDateTime = dataFim != null ? dataFim.atTime(23, 59, 59) : null;
+        
+        // Se apenas status foi fornecido
+        if (status != null && inicioDateTime == null && fimDateTime == null) {
+            return pedidoRepository.findByStatus(status);
         }
         
-        // ADICIONADO: Validação de preço máximo razoável
-        BigDecimal precoMaximo = new BigDecimal("99999.99");
-        if (preco.compareTo(precoMaximo) > 0) {
-            throw new IllegalArgumentException("Preço não pode ser superior a R$ 99.999,99");
+        // Se apenas período foi fornecido
+        if (status == null && inicioDateTime != null && fimDateTime != null) {
+            return pedidoRepository.findByDataPedidoBetween(inicioDateTime, fimDateTime);
         }
-    }
-
-    @Override
-    public List<Produto> buscarPorNome(String nome) {
-        if (nome == null || nome.trim().isEmpty()) {
-            return List.of(); // Retorna lista vazia se nome for nulo ou vazio
+        
+        // Se status e período foram fornecidos
+        if (status != null && inicioDateTime != null && fimDateTime != null) {
+            return pedidoRepository.findByStatusAndDataPedidoBetween(status, inicioDateTime, fimDateTime);
         }
-        return produtoRepository.findByNomeContainingIgnoreCase(nome.trim());
+        
+        // Casos parciais (apenas dataInicio ou apenas dataFim)
+        if (inicioDateTime != null && fimDateTime == null) {
+            return pedidoRepository.findByDataPedidoGreaterThanEqual(inicioDateTime);
+        }
+        
+        if (inicioDateTime == null && fimDateTime != null) {
+            return pedidoRepository.findByDataPedidoLessThanEqual(fimDateTime);
+        }
+        
+        return pedidoRepository.findAll();
     }
 }
