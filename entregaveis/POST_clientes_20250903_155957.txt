@@ -1,0 +1,24 @@
+=== ENTREGA - TESTE DE ENDPOINT ===
+Data/Hora: 03/09/2025 15:59:57
+Método: POST
+URL Completa: http://localhost:8080/api/clientes
+Status HTTP: 400
+Content-Type: application/json
+
+=== DADOS ENVIADOS ===
+{
+  "nome" : "Sara",
+  "telefone" : "1891119283",
+  "email" : "sara_h.tinha@gmail.com",
+  "endereco" : "escola jose foz"
+}
+
+=== RESPOSTA REAL ===
+{
+  "validationErrors" : {
+    "nome" : "Não pode conter menos de 10 ou mais de 100 caracteres"
+  },
+  "error" : "Dados inválidos",
+  "timestamp" : "2025-09-03T15:59:57.8743142",
+  "status" : 400
+}

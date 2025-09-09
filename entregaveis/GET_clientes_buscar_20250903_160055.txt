@@ -1,0 +1,10 @@
+=== ENTREGA - TESTE DE ENDPOINT ===
+Data/Hora: 03/09/2025 16:00:55
+Método: GET
+URL Completa: http://localhost:8080/api/clientes/buscar?nome=sara
+Status HTTP: 200
+Content-Type: application/json
+
+
+=== RESPOSTA REAL ===
+[ ]
