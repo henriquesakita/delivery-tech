@@ -1,0 +1,15 @@
+# Respostas capturadas automaticamente pela API
+entregaveis/
+
+# Build
+target/
+dist/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# Sistema
+.DS_Store
+Thumbs.db
