@@ -17,6 +17,10 @@ CI/CD no GitHub Actions.
 
 `Java 21` `Spring Boot` `Spring Security` `JWT` `JPA` `Docker` `Prometheus` `GitHub Actions`
 
+## Contexto do projeto
+
+Este repositório é a entrega prática do curso **Arquitetura de Sistemas Online** (120 horas), do [Programa Qualifica SP](https://fundacaofat.org.br/cursos-gratuitos-de-tecnologia), promovido pela Secretaria de Desenvolvimento Econômico do Estado de São Paulo e executado pela Fundação FAT. Concluído em setembro de 2025, o curso usa um projeto-base de delivery para percorrer modelagem de dados, APIs RESTful, segurança, controle de transações, documentação com Swagger, testes automatizados, CI/CD, escalabilidade e observabilidade.
+
 ## Stack
 
 | Área | Tecnologia |
