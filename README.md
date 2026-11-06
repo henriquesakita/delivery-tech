@@ -5,14 +5,17 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-3fb950)](LICENSE)
 
-API REST de um marketplace de delivery: clientes, restaurantes, produtos,
-pedidos, pagamentos e relatórios. Construída com **Java 21**, **Spring Boot 3**,
-**Spring Security + JWT**, **JPA/Hibernate** e documentação automática com
-**OpenAPI/Swagger**.
+**API REST de delivery com autenticação JWT, Swagger, Prometheus e entrega em Docker.**
+
+Marketplace de delivery com clientes, restaurantes, produtos, pedidos, pagamentos
+e relatórios. Construída com **Java 21**, **Spring Boot 3**, **Spring Security + JWT**,
+**JPA/Hibernate** e documentação automática com **OpenAPI/Swagger**.
 
 O projeto vai além do CRUD: tem autenticação stateless, validação de entrada,
 tratamento global de erros, testes, build em Docker multi-stage e pipeline de
 CI/CD no GitHub Actions.
+
+`Java 21` `Spring Boot` `Spring Security` `JWT` `JPA` `Docker` `Prometheus` `GitHub Actions`
 
 ## Stack
 
